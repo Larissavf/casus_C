@@ -1,25 +1,26 @@
-def solve_rungekutta(t, a, b, y0):
+def solve_rungekutta(t, a, b, y0, ymax):
     y = y0                              # Beginconditie
     steps = int(abs(t) / 0.01) + 1      # Hoeveel tijdstappen van ~0.01 zijn nodig
     dt = t / steps
     for step in range(steps):
         # Tijdelijke stappen:
-        dydt1 = a * y/(y+b)               # Differentiaalvergelijking stap 1
+        dydt1 = a * y * (ymax**b - y**b)            # Differentiaalvergelijking stap 1
         y1 = y + dydt1 * 0.5 * dt
-        dydt2 = a * y1/(y1+b)              # Differentiaalvergelijking stap 2
+        dydt2 = a * y1 * (ymax**b - y1**b)             # Differentiaalvergelijking stap 2
         y2 = y + dydt2 * 0.5 * dt
-        dydt3 = a * y2/(y2+b)              # Differentiaalvergelijking stap 3
+        dydt3 = a * y2 * (ymax**b - y2**b)                  # Differentiaalvergelijking stap 3
         y3 = y + dydt3 * dt
-        dydt4 = a * y3/(y3+b)                # Differentiaalvergelijking stap 4
+        dydt4 = a * y3 * (ymax**b - y3**b)                  # Differentiaalvergelijking stap 4
         # Definitieve stap:
         dydt = (dydt1 + 2.0 * dydt2 + 2.0 * dydt3 + dydt4) / 6.0
         y += dydt * dt
     return y
 
 params = {
-    'a':  0.46,
-    'b':  5.790,
-    'y0': 0.553,
+    'a':  0.859,
+    'b':  0.121,
+    'y0': 0.000755,
+    "ymax": 7.45
 }
 ts = [i / 10 for i in range(600)]
 ys = [solve_rungekutta(t, **params) for t in ts]
@@ -60,20 +61,26 @@ print(mean_squared_error(data_ts, data_ys, **params))
 
 # Initialisatie
 params = {
-    'a':  1.195419,
-    'b':  6.020496,
-    'y0': 0.001139,
+    'a':  0.859,
+    'b':  0.121,
+    'y0': 0.000755,
+    'ymax': 7.45
 }
 deltas = {key: 1.0 for key in params}
 
 # Herhaaldelijke aanpassing
 mse = mean_squared_error(data_ts, data_ys, **params)
-for i in range(50):
-    print(i)
+counter = 0
+while max(abs(delta) for delta in deltas.values()) > 0.001:
+    counter += 1
+    print("loop:", counter)
     for key in params:
         new_params = params.copy()
         # Probeer de betreffende parameter the verhogen
         new_params[key] = params[key] + deltas[key]
+        for param in new_params:
+            if new_params[param] < 0:
+                new_params[param] = 0
         new_mse = mean_squared_error(data_ts, data_ys, **new_params)
         if new_mse < mse:
             params = new_params
@@ -82,6 +89,9 @@ for i in range(50):
             continue
         # Probeer de betreffende parameter the verlagen
         new_params[key] = params[key] - deltas[key]
+        for param in new_params:
+            if new_params[param] < 0:
+                new_params[param] = 0
         new_mse = mean_squared_error(data_ts, data_ys, **new_params)
         if new_mse < mse:
             params = new_params
