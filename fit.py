@@ -1,34 +1,27 @@
-def solve_rungekutta(t, a, b, y0, ymax):
-    y = y0                              # Beginconditie
-    steps = int(abs(t) / 0.01) + 1      # Hoeveel tijdstappen van ~0.01 zijn nodig
-    dt = t / steps
-    for step in range(steps):
-        # Tijdelijke stappen:
-        dydt1 = a * y * (ymax**b - y**b)            # Differentiaalvergelijking stap 1
-        y1 = y + dydt1 * 0.5 * dt
-        dydt2 = a * y1 * (ymax**b - y1**b)             # Differentiaalvergelijking stap 2
-        y2 = y + dydt2 * 0.5 * dt
-        dydt3 = a * y2 * (ymax**b - y2**b)                  # Differentiaalvergelijking stap 3
-        y3 = y + dydt3 * dt
-        dydt4 = a * y3 * (ymax**b - y3**b)                  # Differentiaalvergelijking stap 4
-        # Definitieve stap:
-        dydt = (dydt1 + 2.0 * dydt2 + 2.0 * dydt3 + dydt4) / 6.0
-        y += dydt * dt
-    return y
-
-params = {
-    'a':  0.859,
-    'b':  0.121,
-    'y0': 0.000755,
-    "ymax": 7.45
-}
-ts = [i / 10 for i in range(600)]
-ys = [solve_rungekutta(t, **params) for t in ts]
-
+import numpy as np
 from matplotlib import pyplot as plt
 
+def solve_rungekutta(t, a,y0, ymax,):
+    y = y0                              # Initial condition
+    steps = int(abs(t) / 0.01) + 1      # Number of ~0.01 time steps
+    dt = t / steps
+
+    for step in range(steps):
+        dydt1 = a * y * np.log(ymax/y)
+        y1 = y + dydt1 * 0.5 * dt
+        dydt2 = a * y1 * np.log(ymax/y1)
+        y2 = y + dydt2 * 0.5 * dt
+        dydt3 = a * y2 * np.log(ymax/y2)
+        y3 = y + dydt3 * dt
+        dydt4 = a * y3 * np.log(ymax/y3) 
+        dydt = (dydt1 + 2.0 * dydt2 + 2.0 * dydt3 + dydt4) / 6.0
+        y += dydt * dt
+
+    return y
+
+# Original data
 data_ts = [
-     3.46,  4.58,  5.67,  6.64,  7.63,  8.41,  9.32, 10.27, 11.19,
+    3.46,  4.58,  5.67,  6.64,  7.63,  8.41,  9.32, 10.27, 11.19,
     12.39, 13.42, 15.19, 16.24, 17.23, 18.18, 19.29, 21.23, 21.99,
     24.33, 25.58, 26.43, 27.44, 28.43, 30.49, 31.34, 32.34, 33.00,
     35.20, 36.34, 37.29, 38.50, 39.67, 41.37, 42.58, 45.39, 46.38,
@@ -42,13 +35,22 @@ data_ys = [
     7.0694, 7.4971, 6.9974, 6.7219, 7.0523, 7.1095, 7.0694, 8.0562, 7.2268, 
 ]
 
-plt.plot(ts, ys, '-', label='model')
-plt.plot(data_ts, data_ys, 'o', label='data')
-plt.axhline(0.0, color='k'); plt.axvline(0.0, color='k')
-plt.grid(True); plt.legend()
-plt.xlabel('$t$'); plt.ylabel('$y(t)$')
-plt.show()
+# Scale the data_ts to [-1, 1]
+data_ts = np.array(data_ts)
+min_val = np.min(data_ts)
+max_val = np.max(data_ts)
+scaled_ts = 2 * (data_ts - min_val) / (max_val - min_val) - 1
 
+data_ys = np.array(data_ys)
+scaled_ys = data_ys/np.max(data_ys)
+
+print(scaled_ys)
+
+
+print(scaled_ts)
+
+# Plot scaled data and model predictions
+ts = np.linspace(-1, 1, 600)  # Scaled time series for model
 def mean_squared_error(data_ts, data_ys, **params):
     N = len(data_ts)
     total = 0.0
@@ -57,50 +59,54 @@ def mean_squared_error(data_ts, data_ys, **params):
         total += error * error
     return total / N
 
-print(mean_squared_error(data_ts, data_ys, **params))
+params = {'a': 3.533, 'y0': 5.788, 'ymax': 7.479}
+ys = [solve_rungekutta(t, **params) for t in ts]
 
-# Initialisatie
-params = {
-    'a':  0.859,
-    'b':  0.121,
-    'y0': 0.000755,
-    'ymax': 7.45
-}
+plt.plot(ts, ys, '-', label='model')
+plt.plot(scaled_ts, scaled_ys, 'o', label='data')
+plt.axhline(0.0, color='k'); plt.axvline(0.0, color='k')
+plt.grid(True); plt.legend()
+plt.xlabel('$t$'); plt.ylabel('$y(t)$')
+plt.show()
+
+# Optimize parameters
 deltas = {key: 1.0 for key in params}
-
-# Herhaaldelijke aanpassing
-mse = mean_squared_error(data_ts, data_ys, **params)
+params = {'a': 3.533, 'y0': 5.788, 'ymax': 7.479}
+mse = mean_squared_error(scaled_ts, scaled_ys, **params)
 counter = 0
-while max(abs(delta) for delta in deltas.values()) > 0.001:
+
+while max(abs(delta) for delta in deltas.values()) > 1e-6:
     counter += 1
     print("loop:", counter)
     for key in params:
         new_params = params.copy()
-        # Probeer de betreffende parameter the verhogen
         new_params[key] = params[key] + deltas[key]
-        for param in new_params:
-            if new_params[param] < 0:
-                new_params[param] = 0
-        new_mse = mean_squared_error(data_ts, data_ys, **new_params)
+      #   for param in new_params:
+      #       if new_params[param] < 0:
+      #           new_params[param] = 1e-8
+        new_mse = mean_squared_error(scaled_ts, scaled_ys, **new_params)
         if new_mse < mse:
             params = new_params
             mse = new_mse
             deltas[key] *= 1.2
             continue
-        # Probeer de betreffende parameter the verlagen
+
         new_params[key] = params[key] - deltas[key]
-        for param in new_params:
-            if new_params[param] < 0:
-                new_params[param] = 0
-        new_mse = mean_squared_error(data_ts, data_ys, **new_params)
+      #   for param in new_params:
+      #       if new_params[param] < 0:
+      #           new_params[param] = 1e-8
+        new_mse = mean_squared_error(scaled_ts, scaled_ys, **new_params)
         if new_mse < mse:
             params = new_params
             mse = new_mse
             deltas[key] *= -1.0
             continue
-        # Verklein de stapgrootte
+
         deltas[key] *= 0.5
 
-print('Optimale parameters:')
+print('Optimized parameters:')
 for key, val in params.items():
     print(f'* {key:>2s} = {val:9.6f}')
+
+aic = len(data_ts) * np.log(mean_squared_error(scaled_ts, scaled_ys, **params)) + 2*len(params)
+print(aic)
