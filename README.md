@@ -93,15 +93,15 @@ Om te starten moet het model worden gedefineerd, dit kan van de volgende:
 ``
 import TGModels as model  
     [  
-        model.Lineair_growth, <br/>
-        model.Exponentieel_toenemende_groei, <br/>
-        model.Exponentieel_afvlakkende_groei, <br/>
-        model.Mendelsohn_growth, <br/>
-        model.Allee_effect_growth,  <br/>
-        model.Lineair_gelimiteerde_groei,  <br/>
-        model.surface_limited_growth,  <br/>
-        model.Von_Bertalanffy_groei,  <br/>
-        model.Gompertz_growth  <br/>
+        model.Lineair_growth, 
+        model.Exponentieel_toenemende_groei, 
+        model.Exponentieel_afvlakkende_groei, 
+        model.Mendelsohn_growth, 
+        model.Allee_effect_growth,   
+        model.Lineair_gelimiteerde_groei,  
+        model.surface_limited_growth, 
+        model.Von_Bertalanffy_groei, 
+        model.Gompertz_growth 
     ]  
 ``  
   
@@ -125,8 +125,8 @@ In deze package zitten 2 solved methods, Runge Kutta en Eulers. Geef de begin y 
   
 ``
 [  
-model.solve_eulers(y0),  
-model.solve_rungekutta(y0)  
+model.solve_eulers(y0), 
+model.solve_rungekutta(y0)
 ]  
 ``
   
