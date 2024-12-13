@@ -1,53 +1,350 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import math
+from scipy.optimize import curve_fit
+from scipy.integrate import solve_ivp
 
-# Gegeven data
-ts = np.array([
-     3.46,  4.58,  5.67,  6.64,  7.63,  8.41,  9.32, 10.27, 11.19,
-    12.39, 13.42, 15.19, 16.24, 17.23, 18.18, 19.29, 21.23, 21.99,
-    24.33, 25.58, 26.43, 27.44, 28.43, 30.49, 31.34, 32.34, 33.00,
-    35.20, 36.34, 37.29, 38.50, 39.67, 41.37, 42.58, 45.39, 46.38,
-    48.29, 49.24, 50.19, 51.14, 52.10, 54.00, 56.33, 57.33, 59.38,
-])
-Vs = np.array([
-    0.0158, 0.0264, 0.0326, 0.0445, 0.0646, 0.0933, 0.1454, 0.2183, 0.2842,
-    0.4977, 0.6033, 0.8441, 1.2163, 1.4470, 2.3298, 2.5342, 3.0064, 3.4044,
-    3.2046, 4.5241, 4.3459, 5.1374, 5.5376, 4.8946, 5.0660, 6.1494, 6.8548,
-    5.9668, 6.6945, 6.6395, 6.8971, 7.2966, 7.2268, 6.8815, 8.0993, 7.2112,
-    7.0694, 7.4971, 6.9974, 6.7219, 7.0523, 7.1095, 7.0694, 8.0562, 7.2268, 
-])
 
-# Logaritmisch transformeren
-ln_Vs = np.log(Vs)
+"""
+A class with different models to possibly fit a tumor growth.
+Different methods to either solve the differentiate formule, fit data to the
+model to determine the best fitting variables and to test wich model fits the best.
+"""
+class TGmodels:
 
-# Bereken gemiddelden
-mean_t = np.mean(ts)
-mean_ln_V = np.mean(ln_Vs)
+    """
+    Contains the formule for the model 
+    """
+    def formule():
+        return None
+    """
+    Containts the params in a dict format
+    """
+    def params():
+        return None
+    
+    """
+    Set the params to new values
+    """
+    def setparams():
+        return None
 
-# Bereken de helling (c) en intercept (ln(V0)) met de normale vergelijkingen
-numerator = np.sum((ts - mean_t) * (ln_Vs - mean_ln_V))
-denominator = np.sum((ts - mean_t) ** 2)
-c = numerator / denominator
-ln_V0 = mean_ln_V - c * mean_t
+    """
+    To solve the differantiate formule using steps to determine 
+    using the Runge Kutta method
+    input: int with the point
+    ouput: int with the outcome  
+    """
+    def solve_rungekutta(self, t):
+        self.solvingsystem = "RungeKutta"
+        steps = max(1, int(abs(t) / 0.01))
+        dt = t / steps
+        y = self.y
+        for step in range(steps):
+            # Tijdelijke stappen:
+            dydt1 = self.formule(y)                # Differentiaalvergelijking stap 1
+            y1 = y + dydt1 * 0.5 * dt
+            dydt2 = self.formule(y1)                # Differentiaalvergelijking stap 2
+            y2 = y + dydt2 * 0.5 * dt
+            dydt3 = self.formule(y2)                # Differentiaalvergelijking stap 3
+            y3 = y + dydt3 * dt
+            dydt4 = self.formule(y3)                # Differentiaalvergelijking stap 4
+            # Definitieve stap:
+            dydt = (dydt1 + 2.0 * dydt2 + 2.0 * dydt3 + dydt4) / 6.0
+            y += dydt * dt
+        return y
+    
+    """
+    To solve the differantiate formule using steps to determine 
+    using the Euler's method
+    input: int with the point
+    ouput: int with the outcome 
+    """
+    def solve_euler(self, t):
+        self.solvingsystem = "Euler"
+        steps = max(1, int(abs(t) / 0.01))
+        dt = t / steps
+        y = self.y()
+        for step in range(steps):
+            dydt = self.formule(y)                 # Differentiaalvergelijking
+            y += dydt * dt
+        return y
+    
+    """ 
+    Optimalisation of model to known points.
+    input: x data, y data, string with type of solvingsystem
+    output: float with the MSE
+    """
+    def mean_squared_error(self, x, y, solvingsystem = None):
+        solvingsystems = {
+            "RungeKutta": self.solve_rungekutta,
+            "Euler": self.solve_euler
+        }
+        # if chosen for a different solvingsystem
+        if solvingsystem not in solvingsystems:
+            if solvingsystem == None:
+                solvingsystem = "RungeKutta"
+            else: return f"Ongeldig solvesystem '{solvingsystem}'. Kies uit: {', '.join(solvingsystems.values())}"
 
-# Herleid V0
-V0 = np.exp(ln_V0)
+        # determine MSE
+        N = len(x)
+        total = 0.0
+        for i in range(N):
+            error = y[i] - solvingsystems[solvingsystem](x[i])
+            total += error * error
+        return total / N
+    
 
-# Print resultaten
-print(f"V0 (startvolume): {V0:.4f}")
-print(f"c (groeisnelheid): {c:.4f}")
+    """
+    Fit the model with the correct params to the data using 
+    the Hooke & Jeeves, direct search.
+    input: x data and y data
+    """
+    def fit(self, x, y):
+        params = self.params()
 
-# Modelwaarden berekenen
-t_fit = np.linspace(min(ts), max(ts), 500)
-V_fit = V0 * np.exp(c * t_fit)
+        deltas = {key: 1.0 for key in params} 
+        # Herhaaldelijke aanpassing
+        mse = self.mean_squared_error(x, y)
+        while max(abs(delta) for delta in deltas.values()) > 1e-8: 
+            for key in params:
+                new_params = params.copy()
+                # Probeer de betreffende parameter the verhogen
+                new_params[key] = params[key] + deltas[key]
+                if new_params[key] < 0:
+                    new_params[key] = 1e-8
+                self.setparams(**new_params)
+                new_mse = self.mean_squared_error(x, y)
+                if new_mse < mse:
+                    params = new_params
+                    mse = new_mse
+                    deltas[key] *= 1.2 
+                    continue
+                # Probeer de betreffende parameter the verlagen
+                new_params[key] = params[key] - deltas[key]
+                if new_params[key] < 0:
+                    new_params[key] = 1e-8
+                self.setparams(**new_params)
+                new_mse = self.mean_squared_error(x, y)
+                if new_mse < mse:
+                    params = new_params
+                    mse = new_mse
+                    deltas[key] *= -1.0 
+                    continue
+                # Verklein de stapgrootte
+                deltas[key] *= 0.5 
+        self.setparams(**params)
 
-# Plotten van resultaten
-plt.figure(figsize=(10, 6))
-plt.scatter(ts, Vs, label="Data", color="red")
-plt.plot(t_fit, V_fit, label=f"Fit: V(t) = {V0:.4f} * exp({c:.4f} * t)", color="blue")
-plt.xlabel("Tijd (t)")
-plt.ylabel("Volume (V)")
-plt.title("Exponentiële groei fit (zonder scipy)")
-plt.legend()
-plt.grid()
-plt.show()
+    """
+    Determine the BIC value to compare the fit of models.
+    """
+    def BIC(self, x, y ):
+        return len(x) * math.log(self.mean_squared_error(x, y)) + (math.log(len(x)) * len(self.params()))
+        
+"""
+The lineair growth model
+"""
+class Lineair_growth(TGmodels):
+    def __init__(self,y , c =  1.0):
+        self.c = c
+        self.y = y
+
+    def formule(self, y):
+        return self.c
+    
+    def params(self):
+        return {"y": self.y, "c": self.c}
+    
+    def setparams(self, y, c):
+        self.c = c
+        self.y = y
+
+"""
+The exponantial increasing growth model
+"""
+class Exponentieel_toenemende_groei(TGmodels):
+    def __init__(self,y , c =  1.0):
+        self.c = c
+        self.y = y
+
+    def formule(self, y):
+        return self.c *y
+    
+    def params(self):
+        return {"y": self.y, "c": self.c}
+    
+    def setparams(self, y, c):
+        self.c = c
+        self.y = y
+
+"""
+The exponantiol decrease growth model
+"""
+class Exponentieel_afvlakkende_groei(TGmodels):
+    def __init__(self,y , vmax, c =  1.0):
+        self.c = c
+        self.y = y
+        self.vmax = vmax
+
+    def formule(self, y):
+        if y >= self.vmax:
+            y = self.vmax
+        return self.c *(self.vmax -y)
+    
+    def params(self):
+        return {"y": self.y, "c": self.c, "vmax": self.vmax}
+    
+    def setparams(self, y, c, vmax):
+        self.c = c
+        self.y = y
+        self.vmax = vmax
+
+"""
+The mendelsohn growth model
+"""             
+class Mendelsohn_growth(TGmodels):
+    def __init__(self, y ,c = 1.0, d = 1.0):
+        self.c = c
+        self.d = d
+        self.y = y
+
+    def formule(self, y):
+        return self.c*y**self.d
+
+    def params(self):
+        return {"c": self.c, "d": self.d, "y": self.y}
+    
+    def setparams(self, c, d, y):
+        self.c = c
+        self.d = d
+        self.y = y
+
+
+"""
+The logistic growth model
+"""    
+class Logistic_growth(TGmodels):
+    def __init__(self, y, vmin, c = 1.0):
+        self.c = c
+        self.vmin = vmin
+        self.y = y
+    
+    def formule(self, y):
+        if y <= self.vmin:
+            y= self.vmin
+        return self.c*y *(self.vmin - y)
+    
+    def params(self):
+        return {"c": self.c, "y": self.y, "vmin": self.vmin}
+    
+    def setparams(self, c, y, vmin):
+        self.c = c
+        self.vmin = vmin
+        self.y = y
+
+"""
+The allee effect growth model
+"""
+class Allee_effect_growth(TGmodels):
+    def __init__(self,y , vmin, vmax, c = 1.0 ):
+        self.c = c
+        self.vmin = vmin
+        self.vmax = vmax
+        self.y = y
+    
+    def formule(self, y):
+        if y >= self.vmax:
+            y = self.vmax
+        if y <= self.vmin:
+            y= self.vmin
+        return self.c*(y - self.vmin) * (self.vmax - y)
+
+    def params(self):
+        return {"c": self.c, "y": self.y, "vmin": self.vmin, "vmax": self.vmax}
+    
+    def setparams(self, c, y, vmin, vmax):
+        self.c = c
+        self.vmin = vmin
+        self.vmax = vmax
+        self.y = y
+
+"""
+The lineair limited growth model
+"""
+class Lineair_gelimiteerde_groei(TGmodels):
+    def __init__(self,y , c = 1.0, d = 1.0):
+        self.c = c
+        self.d = d
+        self.y = y
+    
+    def formule(self, y ):
+        return self.c* (y/(y+self.d))
+    
+    def params(self):
+        return {"c": self.c, "d": self.d, "y": self.y}
+    
+    def setparams(self, c, d, y):
+        self.c = c
+        self.d = d
+        self.y = y
+
+"""
+The surface limited growth model
+"""    
+class surface_limited_growth(TGmodels):
+    def __init__(self,y , c = 1.0, d = 1.0):
+        self.c = c
+        self.d = d
+        self.y = y
+    
+    def formule(self, y ):
+        return self.c* (y/(y+self.d)**(1/3))
+    
+    def params(self):
+        return {"c": self.c, "d": self.d, "y": self.y}
+    
+    def setparams(self, c, d, y):
+        self.c = c
+        self.d = d
+        self.y = y
+
+"""
+The von bertalanffy limited growth model
+"""  
+class Von_Bertalanffy_groei(TGmodels):
+    def __init__(self,y , c = 1.0, d = 1.0):
+        self.c = c
+        self.d = d
+        self.y = y
+    
+    def formule(self, y ):
+        return self.c* y** (2/3) - (y*self.d)
+    
+    def params(self):
+        return {"c": self.c, "d": self.d, "y": self.y}
+    
+    def setparams(self, c, d, y):
+        self.c = c
+        self.d = d
+        self.y = y
+
+"""
+The gompertz growth model
+"""  
+class Gompertz_growth(TGmodels):
+    def __init__(self, y,  vmax, c = 1.0):
+        self.c = c
+        self.vmax = vmax
+        self.y = y
+    
+    def formule(self, y):
+        if y >= self.vmax:
+            y = self.vmax
+        return self.c*y *math.log(self.vmax / y) 
+    
+    def params(self):
+        return {"y": self.y, "c": self.c, "vmax": self.vmax}
+    
+    def setparams(self, y, c, vmax):
+        self.c = c
+        self.vmax = vmax
+        self.y = y
+
