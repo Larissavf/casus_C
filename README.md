@@ -93,15 +93,15 @@ Om te starten moet het model worden gedefineerd, dit kan van de volgende:
 ``
 import TGModels as model  
     [  
-        model.Lineair_growth,  
-        model.Exponentieel_toenemende_groei,  
-        model.Exponentieel_afvlakkende_groei,  
-        model.Mendelsohn_growth,  
-        model.Allee_effect_growth,  
-        model.Lineair_gelimiteerde_groei,  
-        model.surface_limited_growth,  
-        model.Von_Bertalanffy_groei,  
-        model.Gompertz_growth  
+        model.Lineair_growth, \n
+        model.Exponentieel_toenemende_groei, \n
+        model.Exponentieel_afvlakkende_groei, \n 
+        model.Mendelsohn_growth,  \n
+        model.Allee_effect_growth,  \n
+        model.Lineair_gelimiteerde_groei,  \n
+        model.surface_limited_growth,  \n
+        model.Von_Bertalanffy_groei,  \n
+        model.Gompertz_growth  \n
     ]  
 ``  
   
